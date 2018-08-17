@@ -1,9 +1,16 @@
 import ipywidgets as widgets
 import matplotlib.pyplot as plt
+import numpy as np
+import torch
 
 
-def image_interact(arr, figsize=(8, 8), colorbar=False, **imshow_kwargs):
-    n_sliders = len(arr.shape) - 2
+def image_interact(arr, color_channel=None, figsize=(8, 8), colorbar=False, **imshow_kwargs):
+    if isinstance(arr, torch.Tensor):
+        arr = arr.cpu().numpy()
+    if color_channel is not None:
+        assert arr.shape[color_channel] in (3, 4)
+        arr = np.moveaxis(arr, color_channel, -1)
+    n_sliders = len(arr.shape) - 2 if color_channel is None else len(arr.shape) - 3
     dim_names = [f'dim {i}' for i in range(n_sliders)]
 
     def f(**coords):
