@@ -120,7 +120,6 @@ if __name__=='__main__':
         b = 10 * y
         return [a, b]
 
-
     d = {'x': 1, 'y': 2, 'z': 0}
     d = foo(d)
     print(d)
