@@ -31,7 +31,20 @@ def execute_parallel(func, args_list=None, kwargs_list=None, n_jobs=4, verbose=T
     return results
 
 
-def grid_search(func, *args, **kwargs):
+def grid_evaluate(func, *args, **kwargs):
+    """
+    Evaluates the function func on the cartesian product of the lists given for all the args and kwargs.
+
+    :param func: callable
+        Function to be evaluated.
+    :param args:
+        Lists of positional argument values to be iterated over.
+    :param kwargs:
+        Lists of keyword argument values to be iterated over.
+
+    :return:
+        dict
+    """
     n_jobs = kwargs.pop('n_jobs', 4)
     return_args = kwargs.pop('return_args', False)
     shape = tuple([len(arg) for arg in args + tuple(kwargs.values())])
@@ -56,7 +69,7 @@ if __name__ == '__main__':
     def prod(x, y):
         return x * y
 
-    print(grid_search(prod, np.arange(10), y=10*np.arange(5)).astype(np.int32))
+    print(grid_evaluate(prod, np.arange(10), y=10*np.arange(5)).astype(np.int32))
 
     def func(x, y):
         for i in range(10000):
