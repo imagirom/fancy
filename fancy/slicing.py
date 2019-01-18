@@ -46,6 +46,18 @@ def slice_overlap(sl0, sl1, size=None):
     return [global_intersection] + relative_intersections
 
 
+def slices_to_array(slice_list):
+    slice_list = np.array(slice_list)
+    shape = slice_list.shape
+    return np.array([[sl.start, sl.stop, sl.step] for sl in slice_list.flatten()]).reshape(*shape, 3)
+
+
+def array_to_slices(array):
+    assert array.shape(-1) == 3
+    shape = array.shape[:-1]
+    return np.array([slice(*args) for args in array.reshape(-1, 3)], dtype=np.int32).reshape(*shape)
+
+
 if __name__ == '__main__':
     print(slice(0).step)
     print(slice_overlap((slice(10, 20), slice(6, 12)),
