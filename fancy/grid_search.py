@@ -31,7 +31,7 @@ def execute_parallel(func, args_list=None, kwargs_list=None, n_jobs=4, verbose=T
     return results
 
 
-def grid_evaluate(func, *args, **kwargs):
+def grid_evaluate(func, *args, return_structured_array=True, **kwargs):
     """
     Evaluates the function func on the cartesian product of the lists given for all the args and kwargs.
 
@@ -39,14 +39,16 @@ def grid_evaluate(func, *args, **kwargs):
         Function to be evaluated.
     :param args:
         Lists of positional argument values to be iterated over.
+    :param return_structured_array: bool
+        If true, result is a structured array also including all the arguments
     :param kwargs:
         Lists of keyword argument values to be iterated over.
+
 
     :return:
         dict
     """
     n_jobs = kwargs.pop('n_jobs', 4)
-    return_args = kwargs.pop('return_args', False)
     shape = tuple([len(arg) for arg in args + tuple(kwargs.values())])
 
     args_and_kwargs = list(itertools.product(*(args + tuple(kwargs.values()))))
@@ -57,11 +59,12 @@ def grid_evaluate(func, *args, **kwargs):
     result = np.empty(len(args_and_kwargs), dtype=object)
     result[...] = execute_parallel(func, args_list, kwargs_list, n_jobs)
     result = result.reshape(shape)
-    if return_args:  # wrap args in numpy array with same shape as result
-        arg_array = np.empty(len(args_and_kwargs), dtype=object)
-        arg_array[...] = args_and_kwargs
-        arg_array = arg_array.reshape(shape)
-        result = (result, arg_array)
+    if return_structured_array:  # wrap args in numpy array with same shape as result
+        dtype = np.dtype([('result', object)]
+                         + [(f'arg{i}', object) for i in range(len(args))]
+                         + [(kw, object) for kw in kwargs])
+        data = [(result,) + args_kwargs for result, args_kwargs in zip(result.flatten(), args_and_kwargs)]
+        result = np.array(data, dtype).reshape(shape)
     return result
 
 
@@ -69,7 +72,8 @@ if __name__ == '__main__':
     def prod(x, y):
         return x * y
 
-    print(grid_evaluate(prod, np.arange(10), y=10*np.arange(5)).astype(np.int32))
+    arr = grid_evaluate(prod, np.arange(10), y=10*np.arange(5))
+    print(arr['result'])
 
     def func(x, y):
         for i in range(10000):
