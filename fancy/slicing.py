@@ -115,10 +115,20 @@ def slice_argsort(slice_list, order='lex'):
         assert False, f'order must be in ("lex", "diag"), but got {order}'
 
 
+def center_slice(big_shape, center_shape):
+    to_crop = [s_old - s_new for s_old, s_new in zip(big_shape, center_shape)]
+    assert all([crop % 2 == 0 for crop in to_crop]), f'{to_crop}'
+    to_crop = [crop//2 for crop in to_crop]
+    return tuple(slice(crop, size-crop) for size, crop in zip(big_shape, to_crop))
+
+
 if __name__ == '__main__':
+    a = np.array([[1, 2, 3], [1, 2, 3], [3, 4, 5], [3, 6, 5]])
+    print(a)
+    print(a[center_slice(a.shape, (2, 3))])
     print(slice(0).step)
     slices = [(slice(15, 20), slice(6, 12)), (slice(15, 25), slice(5, 15))]
-    print('sorted lex:', sort_slices_lexicographical(slices))
-    print('sorted diag:', sort_slices_diagonal(slices))
+    print('sorted lex:', slice_argsort_lexicographical(slices))
+    print('sorted diag:', slice_argsort_diagonal(slices))
     print(slice_overlap(*slices))
     print(slice_hull(*slices))

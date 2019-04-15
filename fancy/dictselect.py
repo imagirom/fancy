@@ -15,6 +15,26 @@ def recursive_choice(d, key):
     return recursive_choice_inplace(deepcopy(d), key)
 
 
+def recursive_update_inplace(d1, d2):
+    '''
+    Update d1 with the data from d2 recursively
+    :param d1: dict
+    :param d2: dict
+    :return: None
+    '''
+    for key, value in d2.items():
+        if key in d1 and isinstance(d1[key], dict) and isinstance(value, dict):
+            recursive_update_inplace(d1[key], value)
+        else:
+            d1[key] = value
+
+
+def recursive_update(d1, d2):
+    d1 = deepcopy(d1)
+    recursive_update_inplace(d1, d2)
+    return d1
+
+
 if __name__ == '__main__':
 
     d = {
@@ -32,3 +52,28 @@ if __name__ == '__main__':
     }
 
     print(recursive_choice(d, 'B'))
+
+    d1 = {
+        'A': {
+            'B': 0,
+            'C': 0,
+        },
+        'D': {
+            'E': 0,
+            'F': {
+                'G': 0
+            }
+        }
+    }
+
+    d2 = {
+        'A': {
+            'B': 1,
+            'H': 1,
+        },
+        'D': {
+            'I': 1,
+            'F': 1,
+        }
+    }
+    print(recursive_update(d1, d2))

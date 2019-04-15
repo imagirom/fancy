@@ -44,9 +44,7 @@ def plot_image(img, figsize=None, figheight=None, figwidth=None, title=None, col
     if colorbar:
         cax = plt.axes([1 - aspect * colorbar_width, 0.0, aspect * colorbar_width, 1])
         plt.colorbar(mappable=im, cax=cax)
-        return ax, cax
-    else:
-        return ax
+    return fig
 
 
 def image_interact(arr, cat_along=None, color_channel=None, slider_labels=None, **plot_image_kwargs):
