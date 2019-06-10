@@ -2,7 +2,11 @@ import ipywidgets as widgets
 import matplotlib.pyplot as plt
 import collections
 import numpy as np
-import torch
+
+try:
+    import torch
+except ModuleNotFoundError:
+    torch = None
 
 
 def plot_image(img, figsize=None, figheight=None, figwidth=None, title=None, colorbar=False, colorbar_distance=None,
@@ -29,12 +33,12 @@ def plot_image(img, figsize=None, figheight=None, figwidth=None, title=None, col
     elif figheight is None:
         figheight = figwidth * aspect
     else:  # both specified
-        if figheight/figwidth < aspect:
+        if figheight / figwidth < aspect:
             figwidth = figheight / aspect
-            #print('adjusted width')
+            # print('adjusted width')
         else:
             figheight = figwidth * aspect
-            #print('adjusted height')
+            # print('adjusted height')
     fig = plt.figure(figsize=(figwidth, figheight))
     ax = plt.axes([0, 0.0, 1 - aspect * (colorbar_width + colorbar_distance), 1])  # left, bottom, width, height
     im = ax.imshow(img, interpolation='nearest', **imshow_kwargs)
@@ -49,18 +53,26 @@ def plot_image(img, figsize=None, figheight=None, figwidth=None, title=None, col
 
 def image_interact(arr, cat_along=None, color_channel=None, slider_labels=None, **plot_image_kwargs):
     # convert to numpy
-    if isinstance(arr, torch.Tensor):
+    if torch is not None and isinstance(arr, torch.Tensor):
         arr = arr.cpu().numpy()
 
-    # concatenate along specified axes
+    # concatenate along axes specified in cat_along
     if cat_along is not None:
+        # convert cat_along to numpy array
         if not isinstance(cat_along, collections.Iterable):
             cat_along = [cat_along]
         cat_along = np.array(cat_along, dtype=np.int32)
+
+        # convert negative axis specifications to positive ones
         cat_along[cat_along < 0] += len(arr.shape)
-        cat_axes = (((-1) ** np.arange(len(cat_along)))*.5 - 1.5).astype(np.int32)  # alternate concatenation dimension
+
+        # alternate concatenation dimension: horizontal, vertical, ..
+        cat_axes = (((-1) ** np.arange(len(cat_along))) * .5 - 1.5).astype(np.int32)
+
+        # do the concatenation
         for cat_axis, dim in zip(cat_axes, sorted(cat_along, reverse=True)):
             arr = np.concatenate(np.moveaxis(arr, dim, 0), axis=cat_axis)
+            # if the axis belonging to the color channel moved, adjust it
             if color_channel is not None and dim < color_channel:
                 color_channel -= 1
 
@@ -69,24 +81,28 @@ def image_interact(arr, cat_along=None, color_channel=None, slider_labels=None, 
         assert arr.shape[color_channel] in (3, 4)  # color channel needs to be either RGB or RGBA
         arr = np.moveaxis(arr, color_channel, -1)
 
-    # get the number and labels of the sliders
+    # get the number and labels and initialize the sliders
     n_sliders = len(arr.shape) - 2 if color_channel is None else len(arr.shape) - 3
+    
     if slider_labels is None:
         # default slicer labels to 'index, [0 - max]'
-        slider_labels = [f'{i}, [0 - {arr.shape[i]-1}]' for i in range(n_sliders)]
+        slider_labels = [f'{i}, [0 - {arr.shape[i] - 1}]' for i in range(n_sliders)]
+
+    sliders = {slider_labels[i]: widgets.IntSlider(min=0, max=arr.shape[i] - 1, step=1, value=0)
+               for i in range(n_sliders)}
 
     # function for interaction
     def f(**coords):
         plot_image(arr[tuple(coords[n] for n in slider_labels)], **plot_image_kwargs)
         plt.show()
 
-    widgets.interact(f, **{slider_labels[i]: widgets.IntSlider(min=0, max=arr.shape[i] - 1, step=1, value=0) for i in
-                           range(n_sliders)})
+    widgets.interact(f, **sliders)
 
 
 def interactive_3D_scatter(pts, figsize=(8, 8), **kwargs):
     vmax = np.max(np.abs(pts[:, 1:])) * 1.1
-    ind = [pts[:, 0] == z for z in np.arange(np.min(pts[:, 0]), np.max(pts[:, 0])+1)]
+    ind = [pts[:, 0] == z for z in np.arange(np.min(pts[:, 0]), np.max(pts[:, 0]) + 1)]
+
     def f(z):
         plt.figure(figsize=figsize)
         plt.scatter(pts[ind[z], 1], pts[ind[z], 2], **kwargs)
@@ -95,12 +111,13 @@ def interactive_3D_scatter(pts, figsize=(8, 8), **kwargs):
         plt.gca().set_aspect(1)
         plt.title(f'z={z}')
         plt.show()
+
     widgets.interact(f, z=widgets.IntSlider(
         min=np.min(pts[:, 0]), max=np.max(pts[:, 0]), step=1, value=np.min(pts[:, 0]), ))
 
 
 def affinity_hist(affinities, offsets, n_bins=100, one_per_length=True, plot_extra='', **hist_kwargs):
-    #ax = plt.gca() if ax is None else ax
+    # ax = plt.gca() if ax is None else ax
     offsets = np.array(offsets)
 
     if one_per_length:
