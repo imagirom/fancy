@@ -44,21 +44,31 @@ def plot_image(img, figsize=None, figheight=None, figwidth=None, title=None, col
     if colorbar:
         cax = plt.axes([1 - aspect * colorbar_width, 0.0, aspect * colorbar_width, 1])
         plt.colorbar(mappable=im, cax=cax)
-    return fig
+    return fig, im
 
 
 def image_interact(arr, cat_along=None, color_channel=None, slider_labels=None, **plot_image_kwargs):
     # convert to numpy
     if isinstance(arr, torch.Tensor):
         arr = arr.cpu().numpy()
-
+    
+    n_dims = len(arr.shape)
+    # make it so all dimension indices are positive
+    color_channel = n_dims + color_channel if color_channel is not None and color_channel < 0 else color_channel
+    
     # concatenate along specified axes
     if cat_along is not None:
         if not isinstance(cat_along, collections.Iterable):
             cat_along = [cat_along]
+        cat_along = [n_dims + dim if dim < 0 else dim for dim in cat_along]
         cat_along = np.array(cat_along, dtype=np.int32)
         cat_along[cat_along < 0] += len(arr.shape)
-        cat_axes = (((-1) ** np.arange(len(cat_along)))*.5 - 1.5).astype(np.int32)  # alternate concatenation dimension
+        cat_axes = (((-1) ** np.arange(len(cat_along)))*.5 - 1.5).astype(np.int32)  # alternate concatenation dimension (-1, -2, ..)
+        if color_channel == n_dims-1:
+            cat_axes -= 1
+        elif color_channel == n_dims-2:
+            cat_axes[cat_axes == -2] -= 1
+        print(cat_axes)
         for cat_axis, dim in zip(cat_axes, sorted(cat_along, reverse=True)):
             arr = np.concatenate(np.moveaxis(arr, dim, 0), axis=cat_axis)
             if color_channel is not None and dim < color_channel:
@@ -66,7 +76,8 @@ def image_interact(arr, cat_along=None, color_channel=None, slider_labels=None, 
 
     # move color channel to correct position
     if color_channel is not None:
-        assert arr.shape[color_channel] in (3, 4)  # color channel needs to be either RGB or RGBA
+        assert arr.shape[color_channel] in (3, 4), \
+            f'color channel needs to be either RGB or RGBA. Got shape {arr.shape} and channel {color_channel}'
         arr = np.moveaxis(arr, color_channel, -1)
 
     # get the number and labels of the sliders
@@ -74,14 +85,21 @@ def image_interact(arr, cat_along=None, color_channel=None, slider_labels=None, 
     if slider_labels is None:
         # default slicer labels to 'index, [0 - max]'
         slider_labels = [f'{i}, [0 - {arr.shape[i]-1}]' for i in range(n_sliders)]
+    sliders = {slider_labels[i]: widgets.IntSlider(min=0, max=arr.shape[i] - 1, step=1, value=0)
+               for i in range(n_sliders)}
+
+    # FIXME: if matplotlib.get_backend() == 'nbAgg':
+
+    # plot initial image
+    #fig, im = plot_image(arr[(0,) * n_sliders], **plot_image_kwargs)
 
     # function for interaction
     def f(**coords):
+        #im.set_data(arr[tuple(coords[n] for n in slider_labels)])
+        #fig.canvas.draw_idle()
         plot_image(arr[tuple(coords[n] for n in slider_labels)], **plot_image_kwargs)
-        plt.show()
 
-    widgets.interact(f, **{slider_labels[i]: widgets.IntSlider(min=0, max=arr.shape[i] - 1, step=1, value=0) for i in
-                           range(n_sliders)})
+    widgets.interact(f, **sliders)
 
 
 def interactive_3D_scatter(pts, figsize=(8, 8), **kwargs):
