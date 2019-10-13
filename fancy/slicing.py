@@ -86,7 +86,6 @@ def minimum_global_shape(*slices):
 def slices_to_array(slice_list):
     slice_list = np.array(slice_list)
     shape = slice_list.shape
-    print(shape)
     return np.array([[sl.start, sl.stop, sl.step] for sl in slice_list.flatten()]).reshape(*shape, 3) # changed dtype from int32
 
 
