@@ -1,33 +1,46 @@
 import numpy as np
-import multiprocessing as mp
+from multiprocessing.pool import ThreadPool, Pool
 import itertools
+from functools import partial
+from tqdm.auto import tqdm
 
 
-def verbose_wrapper(func, name='function'):
-    def verbose_func(*args, **kwargs):
-        print(f'{name} called with args {args} and kwargs {kwargs}')
-        return func(*args, **kwargs)
-    return verbose_func
+def worker_wrapper(worker, arg, pbar=None):
+    args, kwargs = arg
+    if pbar is not None:
+        pbar.update(1)
+    return worker(*args, **kwargs)
 
 
-# pretty unnecessary, this is basically mp.Pool.apply
-def execute_parallel(func, args_list=None, kwargs_list=None, n_jobs=4, verbose=True):
+def order_saving_worker_wrapper(worker, arg, pbar=None):
+    i, (args, kwargs) = arg
+    if pbar is not None:
+        pbar.update(1)
+    return i, worker(*args, **kwargs)
+
+
+def execute_parallel(func, args_list=None, kwargs_list=None, n_jobs=0, use_threading=False):
     assert args_list is not None or kwargs_list is not None
-    #if verbose:
-    #    func = verbose_wrapper(func)
-    pool = mp.Pool(processes=n_jobs)
-    if args_list is not None and kwargs_list is not None:
-        results = [pool.apply_async(func, args=args, kwds=kwargs)
-                   for args, kwargs in zip(args_list, kwargs_list)]
-    elif args_list is not None:
-        results = [pool.apply_async(func, args=args)
-                   for args in args_list]
-    elif kwargs_list is not None:
-        results = [pool.apply_async(func, kwds=kwargs)
-                   for kwargs in kwargs_list]
+    if args_list is None:
+        assert kwargs_list is not None, 'either args_list or kwargs_list must not be None'
+        args_list = [[]] * len(kwargs_list)
+    if kwargs_list is None:
+        assert args_list is not None, 'either args_list or kwargs_list must not be None'
+        kwargs_list = [{}] * len(args_list)
+
+    if n_jobs > 0 and use_threading:
+        pbar = tqdm(total=len(args_list))
+        with ThreadPool(n_jobs) as p:
+            results = list(p.imap(partial(worker_wrapper, func, pbar=pbar), zip(args_list, kwargs_list)))
+        pbar.close()
+    elif n_jobs > 0 and not use_threading:  # use multiprocessing
+        with Pool(n_jobs) as p:
+            unordered_results = list(tqdm(p.imap_unordered(partial(order_saving_worker_wrapper, func),
+                                                           enumerate(zip(args_list, kwargs_list))),
+                                          total=len(args_list)))
+            results = list(map(lambda x: x[1], sorted(unordered_results)))
     else:
-        assert False, 'either args_list or kwargs_list must not be None'
-    results = [p.get() for p in results]
+        results = [func(*args, **kwargs) for args, kwargs in zip(args_list, kwargs_list)]
     return results
 
 
@@ -48,7 +61,7 @@ def grid_evaluate(func, *args, return_structured_array=True, **kwargs):
     :return:
         dict
     """
-    n_jobs = kwargs.pop('n_jobs', 4)
+    n_jobs = kwargs.pop('n_jobs', 0)
     shape = tuple([len(arg) for arg in args + tuple(kwargs.values())])
 
     args_and_kwargs = list(itertools.product(*(args + tuple(kwargs.values()))))
@@ -68,27 +81,7 @@ def grid_evaluate(func, *args, return_structured_array=True, **kwargs):
     return result
 
 
-if __name__ == '__main__':
-    def prod(x, y):
-        return x * y
+def optimal_parameters(result_grid):
+    ind = np.unravel_index(np.argmin(result_grid['result']), result_grid.shape)
 
-    arr = grid_evaluate(prod, np.arange(10), y=10*np.arange(5))
-    print(arr['result'])
-
-    def func(x, y):
-        for i in range(10000):
-            z = np.exp(12)**.5
-
-
-    from timeit import default_timer as timer
-    start = timer()
-    print(execute_parallel(func, kwargs_list=[{'x': 0, 'y': 0}] * 100, n_jobs=4))
-    end = timer()
-    time_parallel = end - start
-
-    start = timer()
-    print(execute_parallel(func, kwargs_list=[{'x': 0, 'y': 0}] * 100, n_jobs=1))
-    end = timer()
-    time_sequential = end - start
-
-    print(f'speedup: {time_sequential / time_parallel}')
+    return {name: result_grid[name][ind] for name in result_grid.dtype.names}
