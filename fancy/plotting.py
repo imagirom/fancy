@@ -2,7 +2,6 @@ import ipywidgets as widgets
 import matplotlib.pyplot as plt
 import collections
 import numpy as np
-from copy import copy
 
 try:
     import torch
@@ -11,7 +10,7 @@ except ModuleNotFoundError:
 
 
 def plot_image(img, figsize=None, figheight=None, figwidth=None, title=None, colorbar=False, colorbar_distance=None,
-               colorbar_width=0.05, **imshow_kwargs):
+               colorbar_width=0.05, keep_centered=False, **imshow_kwargs):
     if not colorbar:
         # no extra space for colorbar needed
         colorbar_distance = 0
@@ -42,6 +41,13 @@ def plot_image(img, figsize=None, figheight=None, figwidth=None, title=None, col
             # print('adjusted height')
     fig = plt.figure(figsize=(figwidth, figheight))
     ax = plt.axes([0, 0.0, 1 - aspect * (colorbar_width + colorbar_distance), 1])  # left, bottom, width, height
+    if keep_centered:
+        assert 'vmin' not in imshow_kwargs or 'vmax' not in imshow_kwargs, \
+            f'keep centered does not work with both vmin and vmax being specified'
+        v = imshow_kwargs.get('vmax', -imshow_kwargs.get('vmin', -np.max(np.abs(img))))
+        assert v >= 0, \
+            f'cannot keep centered with vmax smaller or vmax smaller 0.'
+        imshow_kwargs['vmin'], imshow_kwargs['vmax'] = -v, v
     im = ax.imshow(img, interpolation='nearest', **imshow_kwargs)
     ax.grid(False)
     if title is not None:
@@ -52,13 +58,7 @@ def plot_image(img, figsize=None, figheight=None, figwidth=None, title=None, col
     return fig, im
 
 
-def image_interact(
-        arr,
-        cat_along=None,
-        color_channel=None,
-        slider_labels=None,
-        slider_value_names=None,
-        **plot_image_kwargs):
+def image_interact(arr, cat_along=None, color_channel=None, slider_labels=None, **plot_image_kwargs):
     # convert to numpy
     if torch is not None and isinstance(arr, torch.Tensor):
         arr = arr.cpu().numpy()
@@ -112,14 +112,9 @@ def image_interact(
 
     # function for interaction
     def f(**coords):
-        plot_kwargs = copy(plot_image_kwargs)
-        if slider_value_names is not None:
-            plot_kwargs['title'] = plot_image_kwargs.get('title', '') + '\n' + \
-                                   '\n'.join(f'{label}={names[int(coords[label])]}'
-                                             for label, names in zip(slider_labels, slider_value_names))
         #im.set_data(arr[tuple(coords[n] for n in slider_labels)])
         #fig.canvas.draw_idle()
-        plot_image(arr[tuple(coords[n] for n in slider_labels)], **plot_kwargs)
+        plot_image(arr[tuple(coords[n] for n in slider_labels)], **plot_image_kwargs)
 
     widgets.interact(f, **sliders)
 
