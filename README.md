@@ -14,5 +14,5 @@ pip install "fancy-utils[plotting]"
 Import what you want to use directly from submodules, e.g.
 
 ```python
-from fancy.plotting import image_inteact
+from fancy.plotting import image_interact
 ```
