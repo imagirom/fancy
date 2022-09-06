@@ -11,8 +11,20 @@ def recursive_choice_inplace(d, key):
     return d
 
 
+def copy_nested_dict(d: dict):
+    assert isinstance(d, dict), f'Not a dict: {d}, {type(d)}'
+
+    def dd(d):
+        if isinstance(d, dict):
+            return {key: dd(value) for key, value in d.items()}
+        else:
+            return d
+
+    return dd(d)
+
+
 def recursive_choice(d, key):
-    return recursive_choice_inplace(deepcopy(d), key)
+    return recursive_choice_inplace(copy_nested_dict(d), key)
 
 
 def recursive_update_inplace(d1, d2):

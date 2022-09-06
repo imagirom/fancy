@@ -10,7 +10,7 @@ except ModuleNotFoundError:
 
 
 def plot_image(img, figsize=None, figheight=None, figwidth=None, title=None, colorbar=False, colorbar_distance=None,
-               colorbar_width=0.05, **imshow_kwargs):
+               colorbar_width=0.05, keep_centered=False, **imshow_kwargs):
     if not colorbar:
         # no extra space for colorbar needed
         colorbar_distance = 0
@@ -41,6 +41,13 @@ def plot_image(img, figsize=None, figheight=None, figwidth=None, title=None, col
             # print('adjusted height')
     fig = plt.figure(figsize=(figwidth, figheight))
     ax = plt.axes([0, 0.0, 1 - aspect * (colorbar_width + colorbar_distance), 1])  # left, bottom, width, height
+    if keep_centered:
+        assert 'vmin' not in imshow_kwargs or 'vmax' not in imshow_kwargs, \
+            f'keep centered does not work with both vmin and vmax being specified'
+        v = imshow_kwargs.get('vmax', -imshow_kwargs.get('vmin', -np.max(np.abs(img))))
+        assert v >= 0, \
+            f'cannot keep centered with vmax smaller or vmax smaller 0.'
+        imshow_kwargs['vmin'], imshow_kwargs['vmax'] = -v, v
     im = ax.imshow(img, interpolation='nearest', **imshow_kwargs)
     ax.grid(False)
     if title is not None:
@@ -48,28 +55,35 @@ def plot_image(img, figsize=None, figheight=None, figwidth=None, title=None, col
     if colorbar:
         cax = plt.axes([1 - aspect * colorbar_width, 0.0, aspect * colorbar_width, 1])
         plt.colorbar(mappable=im, cax=cax)
-    return fig
+    return fig, im
 
 
 def image_interact(arr, cat_along=None, color_channel=None, slider_labels=None, **plot_image_kwargs):
     # convert to numpy
     if torch is not None and isinstance(arr, torch.Tensor):
         arr = arr.cpu().numpy()
-
-    # concatenate along axes specified in cat_along
+    
+    n_dims = len(arr.shape)
+    # make it so all dimension indices are positive
+    color_channel = n_dims + color_channel if color_channel is not None and color_channel < 0 else color_channel
+    
+    # concatenate along specified axes
     if cat_along is not None:
         # convert cat_along to numpy array
         if not isinstance(cat_along, collections.Iterable):
             cat_along = [cat_along]
+        cat_along = [n_dims + dim if dim < 0 else dim for dim in cat_along]
         cat_along = np.array(cat_along, dtype=np.int32)
 
         # convert negative axis specifications to positive ones
         cat_along[cat_along < 0] += len(arr.shape)
+        cat_axes = (((-1) ** np.arange(len(cat_along)))*.5 - 1.5).astype(np.int32)  # alternate concatenation dimension (-1, -2, ..)
+        if color_channel == n_dims-1:
+            cat_axes -= 1
+        elif color_channel == n_dims-2:
+            cat_axes[cat_axes == -2] -= 1
+        print(cat_axes)
 
-        # alternate concatenation dimension: horizontal, vertical, ..
-        cat_axes = (((-1) ** np.arange(len(cat_along))) * .5 - 1.5).astype(np.int32)
-
-        # do the concatenation
         for cat_axis, dim in zip(cat_axes, sorted(cat_along, reverse=True)):
             arr = np.concatenate(np.moveaxis(arr, dim, 0), axis=cat_axis)
             # if the axis belonging to the color channel moved, adjust it
@@ -78,7 +92,8 @@ def image_interact(arr, cat_along=None, color_channel=None, slider_labels=None, 
 
     # move color channel to correct position
     if color_channel is not None:
-        assert arr.shape[color_channel] in (3, 4)  # color channel needs to be either RGB or RGBA
+        assert arr.shape[color_channel] in (3, 4), \
+            f'color channel needs to be either RGB or RGBA. Got shape {arr.shape} and channel {color_channel}'
         arr = np.moveaxis(arr, color_channel, -1)
 
     # get the number and labels and initialize the sliders
@@ -86,15 +101,20 @@ def image_interact(arr, cat_along=None, color_channel=None, slider_labels=None, 
     
     if slider_labels is None:
         # default slicer labels to 'index, [0 - max]'
-        slider_labels = [f'{i}, [0 - {arr.shape[i] - 1}]' for i in range(n_sliders)]
-
+        slider_labels = [f'{i}, [0 - {arr.shape[i]-1}]' for i in range(n_sliders)]
     sliders = {slider_labels[i]: widgets.IntSlider(min=0, max=arr.shape[i] - 1, step=1, value=0)
                for i in range(n_sliders)}
 
+    # FIXME: if matplotlib.get_backend() == 'nbAgg':
+
+    # plot initial image
+    #fig, im = plot_image(arr[(0,) * n_sliders], **plot_image_kwargs)
+
     # function for interaction
     def f(**coords):
+        #im.set_data(arr[tuple(coords[n] for n in slider_labels)])
+        #fig.canvas.draw_idle()
         plot_image(arr[tuple(coords[n] for n in slider_labels)], **plot_image_kwargs)
-        plt.show()
 
     widgets.interact(f, **sliders)
 

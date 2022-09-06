@@ -19,8 +19,8 @@ def clip_extreme(imgs, percentile=5, allowed_steepness=3, dim=2):
         return_torch=False
     img_shape = imgs.shape[-dim:]
     imgs = imgs.reshape(imgs.shape[:-dim] + (-1,))
-    mins = np.min(imgs, axis=-1)
-    maxs = np.max(imgs, axis=-1)
+    # mins = np.min(imgs, axis=-1)
+    # maxs = np.max(imgs, axis=-1)
     soft_mins = np.percentile(imgs, percentile, axis=-1)
     soft_maxs = np.percentile(imgs, 100-percentile, axis=-1)
     ranges = soft_maxs - soft_mins

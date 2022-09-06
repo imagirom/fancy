@@ -122,5 +122,5 @@ if __name__=='__main__':
 
     d = {'x': 1, 'y': 2, 'z': 0}
     d = foo(d)
-    print(d)
+    print(d)  # {'x': 1, 'y': 2, 'z': 0, 'a': 10, 'b': 20}
     #print(extract_return('foo'))
