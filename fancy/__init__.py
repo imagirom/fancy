@@ -1,3 +1,5 @@
+__version__ = "0.0.1"
+
 # from . import dictprocess
 # from . import plotting
 # from . import weighted_loss
